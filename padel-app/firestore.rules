@@ -1,0 +1,33 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidNewMatch(data) {
+      return data.keys().hasOnly(['creatorId', 'startsAt', 'location', 'maxPlayers', 'createdAt'])
+        && data.keys().hasAll(['creatorId', 'startsAt', 'location', 'maxPlayers', 'createdAt'])
+        && data.creatorId == request.auth.uid
+        && data.startsAt is timestamp
+        && data.startsAt > request.time
+        && data.location is string
+        && data.location.trim().size() > 0
+        && data.location.size() <= 100
+        && data.maxPlayers is int
+        && data.maxPlayers >= 2
+        && data.maxPlayers <= 4
+        && data.createdAt == request.time;
+    }
+
+    match /matches/{matchId} {
+      // Signed-in users can read matches so they can be found later.
+      allow read: if isSignedIn();
+      // Only signed-in users can create matches, and only in their own name.
+      allow create: if isSignedIn() && isValidNewMatch(request.resource.data);
+      // Editing and deleting matches is not supported yet.
+      allow update, delete: if false;
+    }
+  }
+}
